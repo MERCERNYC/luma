@@ -6,7 +6,7 @@ import type {
 // Calculates priority using simple, explainable rules.
 export function scoreEmail(
   email: LumaEmail,
-  now: Date = new Date()
+  now: Date
 ): number {
   let score = 0;
 
@@ -73,7 +73,7 @@ export function categorizeEmail(
 // Scores, categorizes, and sorts emails by priority.
 export function sortEmails(
   emails: LumaEmail[],
-  now: Date = new Date()
+  now: Date
 ): LumaEmail[] {
   return emails
     .map((email) => {
