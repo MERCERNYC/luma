@@ -1,3 +1,4 @@
+
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -29,6 +30,7 @@ export default function Sidebar() {
           height={85}
           className="h-auto w-full"
           priority
+          unoptimized
         />
       </div>
 
@@ -53,4 +55,3 @@ export default function Sidebar() {
     </aside>
   );
 }
-
