@@ -1,32 +1,21 @@
 import Sidebar from "@/components/layout/Sidebar";
+import Header from "@/components/layout/Header";
 
-// Home is the main page of our LUMA application.
-
+// This is the LUMA home dashboard.
 export default function Home() {
   return (
-    // flex places the sidebar and dashboard side by side.
-    // min-h-screen makes the layout fill the browser height.
     <div className="flex min-h-screen bg-[#EAF1FC]">
 
-      {/* LEFT SIDE: Our reusable Sidebar component */}
+      {/* LEFT: Navigation */}
       <Sidebar />
 
-      {/* RIGHT SIDE: Main dashboard content */}
-      {/* flex-1 uses all the space remaining after the sidebar. */}
+      {/* RIGHT: Dashboard */}
       <main className="min-w-0 flex-1 p-8">
 
-        {/* HEADER: The first thing users see */}
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold text-[#1B2748]">
-            Good morning, Juliana ☀
-          </h1>
+        {/* Reusable welcome header */}
+        <Header />
 
-          <p className="mt-2 text-sm text-[#65718A]">
-            Welcome to LUMA. Let's make today feel lighter.
-          </p>
-        </header>
-
-        {/* DASHBOARD: Placeholder for our future components */}
+        {/* Placeholder for our next dashboard components */}
         <section
           className="rounded-2xl bg-white p-6 shadow-sm"
           aria-label="LUMA dashboard"
