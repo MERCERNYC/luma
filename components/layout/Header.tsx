@@ -10,7 +10,7 @@ export default function Header() {
       {/* LEFT: Welcome message */}
       <div>
         <h1 className="text-2xl font-bold text-[#1B2748]">
-          Good morning, Juliana ☀
+          Good morning, Sophia ☀
         </h1>
 
         <p className="mt-2 text-sm text-[#65718A]">
