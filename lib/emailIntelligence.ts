@@ -2,14 +2,25 @@
 import type { LumaEmail } from "../types/email";
 import { detectAction } from "./detectAction";
 
-// The four types of email LUMA recognizes.
+/**
+ * LUMA — Email Intelligence Engine
+ *
+ * Separates three independent decisions:
+ *
+ * 1. What type of email is this?
+ * 2. Does it require a legitimate action?
+ * 3. How high should it rank?
+ *
+ * Suspicious messages are excluded from the
+ * normal focus list and require safe review.
+ */
+
 export type EmailType =
   | "communication"
   | "notification"
   | "promotion"
   | "potential_spam";
 
-// The result of LUMA analyzing one email.
 export type EmailDecision = {
   email: LumaEmail;
   type: EmailType;
@@ -19,68 +30,121 @@ export type EmailDecision = {
   reason: string;
 };
 
-// Checks whether text contains any matching phrase.
 function includesAny(
   text: string,
   phrases: string[]
 ): boolean {
-  return phrases.some((phrase) => text.includes(phrase));
+  return phrases.some((phrase) =>
+    text.includes(phrase)
+  );
 }
 
-// Analyze one email.
-export function evaluateEmail(
-  email: LumaEmail,
-  now: Date
-): EmailDecision {
-  const content =
+/**
+ * CLASSIFICATION
+ *
+ * Order matters:
+ * 1. Suspicious content
+ * 2. Promotions
+ * 3. Notifications
+ * 4. Regular communication
+ *
+ * These phrase lists are evaluation baselines,
+ * not production-grade spam detection.
+ */
+function classifyEmail(email: LumaEmail): EmailType {
+  const text =
     `${email.subject} ${email.body}`.toLowerCase();
 
-  // STAGE 1: CLASSIFY THE EMAIL TYPE
-
-  const suspicious = includesAny(content, [
+  const suspicious = includesAny(text, [
     "you won a prize",
     "claim your reward",
     "verify your password",
+    "send us your password",
+    "send a gift card code",
+    "provide your login credentials",
+    "pay a processing fee",
   ]);
 
-  const promotional = includesAny(content, [
+  if (suspicious) {
+    return "potential_spam";
+  }
+
+  const promotional = includesAny(text, [
     "special offer",
     "sale ends",
     "discount code",
+    "new arrivals",
+    "membership promotion",
+    "skincare deal",
+    "flash travel sale",
+    "last chance to save",
+    "a gift for you",
+    "laptop deals",
   ]);
 
-  const notification = includesAny(content, [
+  if (promotional) {
+    return "promotion";
+  }
+
+  const notification = includesAny(text, [
     "your order has shipped",
     "delivery update",
     "appointment reminder",
     "appointment confirmation",
+    "benefits enrollment",
+    "emergency contact update",
+    "emergency contact verification",
+    "new patient paperwork",
+    "expense report correction",
+    "monthly statement available",
+    "meeting reminder",
+    "backup completed",
+    "automated reminder",
+    "school will be closed",
+    "payment unsuccessful",
+    "order delivered",
   ]);
 
-  let type: EmailType = "communication";
-
-  if (suspicious) {
-    type = "potential_spam";
-  } else if (promotional) {
-    type = "promotion";
-  } else if (notification || email.isNewsletter) {
-    type = "notification";
+  if (notification || email.isNewsletter) {
+    return "notification";
   }
 
-  // STAGE 2: AUTOMATIC ACTION DETECTION
+  return "communication";
+}
 
-  // LUMA reads the email instead of trusting
-  // the manually supplied requiresAction label.
+/**
+ * EVALUATE ONE EMAIL
+ *
+ * Uses classification, action detection,
+ * sender importance, deadlines, and recency.
+ */
+export function evaluateEmail(
+  email: LumaEmail,
+  now: Date
+): EmailDecision {
+  const type = classifyEmail(email);
+  const needsReview = type === "potential_spam";
+
   const action = detectAction(email);
-  const requiresAction = action.requiresAction;
 
-  // STAGE 3: CALCULATE PRIORITY
+  /**
+   * Suspicious requests are not treated as
+   * legitimate tasks for the Top 3.
+   *
+   * Example:
+   * "Send us your password immediately"
+   * is a request, but not one LUMA should
+   * recommend completing.
+   */
+  const requiresAction =
+    !needsReview && action.requiresAction;
 
   let score = 0;
   const reasons: string[] = [];
 
   if (requiresAction) {
     score += 35;
-    reasons.push("Action required");
+    reasons.push(action.reason);
   }
 
   if (email.importantSender) {
@@ -88,10 +152,15 @@ export function evaluateEmail(
     reasons.push("Important sender");
   }
 
-  // Deadlines affect priority only when
-  // LUMA detects an action to complete.
+  /**
+   * Deadlines increase priority only when
+   * a legitimate action has been detected.
+   *
+   * Invalid deadline values are ignored.
+   */
   if (requiresAction && email.deadline) {
-    const deadlineMs = new Date(email.deadline).getTime();
+    const deadlineMs =
+      new Date(email.deadline).getTime();
 
     if (Number.isFinite(deadlineMs)) {
       const hoursUntil =
@@ -110,8 +179,12 @@ export function evaluateEmail(
     }
   }
 
-  // Recently received emails receive a small bonus.
-  const receivedMs = new Date(email.receivedAt).getTime();
+  /**
+   * Recency is a small tie-breaking signal.
+   * It should not outweigh a real deadline.
+   */
+  const receivedMs =
+    new Date(email.receivedAt).getTime();
 
   if (Number.isFinite(receivedMs)) {
     const hoursOld =
@@ -122,32 +195,21 @@ export function evaluateEmail(
     }
   }
 
-  // Routine promotions are less important.
+  // Routine advertisements should not
+  // compete with genuine action requests.
   if (type === "promotion" && !requiresAction) {
     score -= 30;
   }
 
-  // Potential spam requires separate review.
-  // LUMA must never automatically delete it.
-  const needsReview = type === "potential_spam";
-
-  // STAGE 4: EXPLAIN THE DECISION
-
-  let reason: string;
-
-  if (needsReview) {
-    reason =
-      "Potentially suspicious message. Review safely before taking action.";
-  } else if (requiresAction) {
-    reason = [
-      action.reason,
-      ...reasons.filter((item) => item !== "Action required"),
-    ].join(" ");
-  } else if (reasons.length > 0) {
-    reason = reasons.join("; ");
-  } else {
-    reason = "No explicit action request detected.";
-  }
+  /**
+   * Explanations are based on actual rules.
+   * Do not invent a deadline or action.
+   */
+  const reason = needsReview
+    ? "Potentially suspicious message. Review safely."
+    : reasons.length > 0
+      ? reasons.join("; ")
+      : action.reason;
 
   return {
     email,
@@ -159,8 +221,19 @@ export function evaluateEmail(
   };
 }
 
-// STAGE 5: SORT EMAILS BY PRIORITY
-
+/**
+ * PRIORITIZE EMAILS
+ *
+ * Ranking order:
+ * 1. Safe-to-review emails before suspicious ones
+ * 2. Actionable emails before non-actionable ones
+ * 3. Higher scores first
+ * 4. Newer messages first
+ * 5. Stable ID tie-breaker
+ *
+ * Suspicious messages are not deleted.
+ * The dashboard must keep them out of Top 3.
+ */
 export function prioritizeEmails(
   emails: LumaEmail[],
   now: Date
@@ -168,24 +241,23 @@ export function prioritizeEmails(
   return emails
     .map((email) => evaluateEmail(email, now))
     .sort((a, b) => {
-      // Suspicious emails go to separate review.
       if (a.needsReview !== b.needsReview) {
         return a.needsReview ? 1 : -1;
       }
 
-      // Emails requiring action come first.
       if (a.requiresAction !== b.requiresAction) {
         return a.requiresAction ? -1 : 1;
       }
 
-      // Higher priority score comes first.
       if (a.score !== b.score) {
         return b.score - a.score;
       }
 
-      // If scores match, newest email comes first.
-      const aTime = new Date(a.email.receivedAt).getTime();
-      const bTime = new Date(b.email.receivedAt).getTime();
+      const aTime =
+        new Date(a.email.receivedAt).getTime();
+
+      const bTime =
+        new Date(b.email.receivedAt).getTime();
 
       const timeDifference =
         (Number.isFinite(bTime) ? bTime : 0) -
@@ -195,9 +267,6 @@ export function prioritizeEmails(
         return timeDifference;
       }
 
-      // Final deterministic tie-breaker.
       return a.email.id.localeCompare(b.email.id);
     });
 }
-
-  
